@@ -1,9 +1,9 @@
-name: Reusable Pull and Sync Shared Configs
+name: Reusable Overwrite Target Repo with Source
 
 on:
   workflow_call:
     secrets:
-        GITHUB_PAT:
+        PAT:
           required: true
 
 jobs:
@@ -13,32 +13,70 @@ jobs:
       - name: Checkout Target Repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_PAT }}
+          # 使用传入的 GITHUB_PAT 来检出目标仓库
+          # 并确保我们获取所有历史记录以便能够正确推送
+          token: ${{ secrets.PAT }}
+          fetch-depth: 0 # 获取所有历史记录，对于某些git操作可能需要
 
-      - name: Checkout Source Repo
+      - name: Checkout Source Template Repo
         uses: actions/checkout@v4
         with:
-          repository: malinkang/template-workflows
-          ref: main
-          path: ./.tmp/template-workflows
-          token: ${{ secrets.TARGET_REPO_TOKEN }}
+          repository: malinkang/template-workflows # 源仓库
+          ref: main # 或者您想要同步的分支/标签
+          path: ./source-template # 将源仓库内容检出到此临时目录
+          token: ${{ secrets.PAT }} # 假设 GITHUB_PAT 也有权限访问此仓库，如果它是私有的
 
-
-      - name: Sync Files
+      - name: Overwrite Target with Source Contents
         run: |
-          # ... rsync 逻辑 ...
-          rsync -av --delete ./.tmp/template-workflows/.github/workflows/*.yml ./.github/workflows/
-          rm -rf ./.tmp/template-workflows
+          echo "确定目标仓库的根目录..."
+          TARGET_ROOT=$(pwd)
+          echo "目标仓库根目录是: $TARGET_ROOT"
 
-      - name: Commit and Push Changes
+          echo "列出目标仓库检出后的初始内容（包括隐藏文件）..."
+          ls -A "$TARGET_ROOT/"
+
+          echo "删除目标仓库中除 .git 之外的所有内容..."
+          # 转到目标仓库的根目录
+          cd "$TARGET_ROOT"
+          # 删除所有文件和目录，除了 .git 目录
+          # 使用 find 命令来避免删除 .git 目录
+          # -mindepth 1 -maxdepth 1: 只处理根目录下的直接子项
+          # -not -name ".git": 排除 .git 目录
+          # -exec rm -rf {} +: 执行删除
+          find . -mindepth 1 -maxdepth 1 -not -name ".git" -exec rm -rf {} +
+          echo "目标仓库内容（除.git外）已清除。"
+
+          echo "列出清除后的目标仓库内容（应只剩下 .git 或为空）..."
+          ls -A "$TARGET_ROOT/"
+
+          echo "从源模板同步所有文件到目标仓库根目录..."
+          # 使用 rsync 进行同步。
+          # -a: 归档模式，等同于 -rlptgoD (保留权限、符号链接、时间戳等)
+          # -v: 详细输出
+          # --delete: 删除目标目录中源目录不存在的文件和目录
+          # --exclude='.git': 确保不从源模板复制 .git 目录（如果有的话）
+          rsync -av --delete --exclude='.git' ./source-template/ ./
+          echo "文件同步完成。"
+
+          echo "列出同步后的目标仓库内容..."
+          ls -A "$TARGET_ROOT/"
+
+          echo "清理源模板临时目录..."
+          rm -rf ./source-template
+          echo "源模板临时目录已删除。"
+
+      - name: Commit and Push Changes to Target Repo
         run: |
-          # ... git commit 和 push 逻辑 ...
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+          # 检查是否有更改。git status --porcelain 会在有更改时输出内容。
           if [[ -n "$(git status --porcelain)" ]]; then
-            git add ./.github/workflows/
-            git commit -m "CI: Update shared workflow configurations from template"
+            echo "检测到更改，正在提交和推送..."
+            git add -A  # 添加所有更改（新增、修改、删除）
+            git commit -m "CI: Overwrite repository with content from template-workflows"
             git push
+            echo "更改已推送到目标仓库。"
           else
-            echo "No changes to sync."
+            echo "No changes to sync. Target repository is already up-to-date with the source template."
           fi
