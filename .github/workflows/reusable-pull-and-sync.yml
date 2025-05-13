@@ -21,41 +21,45 @@ jobs:
         with:
           repository: malinkang/template-workflows # 源仓库
           ref: main # 或者您想要同步的分支/标签
-          path: ${{ runner.temp }}/source-template # <--- 修改点：检出到 runner.temp 下的临时目录
+          path: .source-template-data # <--- 修改点：检出到工作区内的一个特定子目录
           token: ${{ secrets.PAT }}
-
       - name: Overwrite Target with Source Contents
         run: |
           echo "确定目标仓库的根目录..."
           TARGET_ROOT=$(pwd)
           echo "目标仓库根目录是: $TARGET_ROOT"
 
-          SOURCE_TEMPLATE_PATH="${{ runner.temp }}/source-template" # <--- 修改点：定义源模板路径变量
-          echo "源模板临时检出路径是: $SOURCE_TEMPLATE_PATH"
+          SOURCE_TEMPLATE_CHECKOUT_PATH=".source-template-data" # <--- 修改点：定义源模板检出路径
+          echo "源模板检出路径是: $TARGET_ROOT/$SOURCE_TEMPLATE_CHECKOUT_PATH"
 
           echo "列出目标仓库检出后的初始内容（包括隐藏文件）..."
           ls -A "$TARGET_ROOT/"
 
-          echo "删除目标仓库中除 .git 之外的所有内容..."
+          echo "删除目标仓库中除 .git 和 $SOURCE_TEMPLATE_CHECKOUT_PATH 之外的所有内容..."
           cd "$TARGET_ROOT"
-          find . -mindepth 1 -maxdepth 1 -not -name ".git" -exec rm -rf {} +
-          echo "目标仓库内容（除.git外）已清除。"
+          # 使用 find 命令来避免删除 .git 和源模板检出目录
+          # -mindepth 1 -maxdepth 1: 只处理根目录下的直接子项
+          # -not -name ".git": 排除 .git 目录
+          # -not -name "$SOURCE_TEMPLATE_CHECKOUT_PATH": 排除源模板检出目录
+          # -exec rm -rf {} +: 执行删除
+          find . -mindepth 1 -maxdepth 1 -not -name ".git" -not -name "$SOURCE_TEMPLATE_CHECKOUT_PATH" -exec rm -rf {} +
+          echo "目标仓库内容（除.git和源模板外）已清除。"
 
-          echo "列出清除后的目标仓库内容（应只剩下 .git 或为空）..."
+          echo "列出清除后的目标仓库内容..."
           ls -A "$TARGET_ROOT/"
 
           echo "从源模板同步所有文件到目标仓库根目录..."
           # 使用 rsync 进行同步。
-          # 源路径现在是绝对路径到 runner.temp 下的目录
-          rsync -av --delete --exclude='.git' "$SOURCE_TEMPLATE_PATH/" ./ # <--- 修改点：使用变量指定 rsync 源路径
+          # 源路径是工作区内的子目录
+          rsync -av --delete --exclude='.git' "./$SOURCE_TEMPLATE_CHECKOUT_PATH/" ./
           echo "文件同步完成。"
 
           echo "列出同步后的目标仓库内容..."
           ls -A "$TARGET_ROOT/"
 
-          echo "清理位于 ${{ runner.temp }} 的源模板临时目录..."
-          rm -rf "$SOURCE_TEMPLATE_PATH" # <--- 修改点：清理 runner.temp 下的目录
-          echo "源模板临时目录已删除。"
+          echo "清理源模板检出目录..."
+          rm -rf "./$SOURCE_TEMPLATE_CHECKOUT_PATH" # <--- 修改点：清理工作区内的源模板检出目录
+          echo "源模板检出目录已删除。"
 
       - name: Commit and Push Changes to Target Repo
         run: |
