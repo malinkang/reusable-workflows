@@ -27,7 +27,7 @@ jobs:
       - name: Sync Files
         run: |
           rsync -av --delete ./.tmp/template-workflows/.github/workflows/*.yml ./.github/workflows/
-          rsync -av --delete ./.tmp/template-workflows/*.txt ./
+          rsync -av --delete ./.tmp/template-workflows/*.txt .
           rm -rf ./.tmp/template-workflows
 
       - name: Commit and Push Changes
@@ -36,7 +36,7 @@ jobs:
           git config --global user.name 'github-actions[bot]'
           git config --global user.email 'github-actions[bot]@users.noreply.github.com'
           if [[ -n "$(git status --porcelain)" ]]; then
-            git add ./.github/workflows/
+            git add -A
             git commit -m "CI: Update shared workflow configurations from template"
             git push
           else
