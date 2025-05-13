@@ -1,0 +1,44 @@
+name: Reusable Pull and Sync Shared Configs
+
+on:
+  workflow_call:
+    secrets:
+        GITHUB_PAT:
+          required: true
+
+jobs:
+  pull_and_sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Target Repo
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_PAT }}
+
+      - name: Checkout Source Repo
+        uses: actions/checkout@v4
+        with:
+          repository: malinkang/template-workflows
+          ref: main
+          path: ./.tmp/template-workflows
+          token: ${{ secrets.TARGET_REPO_TOKEN }}
+
+
+      - name: Sync Files
+        run: |
+          # ... rsync 逻辑 ...
+          rsync -av --delete ./.tmp/template-workflows/.github/workflows/*.yml ./.github/workflows/
+          rm -rf ./.tmp/template-workflows
+
+      - name: Commit and Push Changes
+        run: |
+          # ... git commit 和 push 逻辑 ...
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git add ./.github/workflows/
+            git commit -m "CI: Update shared workflow configurations from template"
+            git push
+          else
+            echo "No changes to sync."
+          fi
