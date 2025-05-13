@@ -27,7 +27,7 @@ jobs:
       - name: Sync Files
         run: |
           rsync -av --delete ./.tmp/template-workflows/.github/workflows/*.yml ./.github/workflows/
-          rsync -av --delete ./.tmp/template-workflows/*.txt .
+          rsync -av --delete ./.tmp/template-workflows/*.txt ./
           rm -rf ./.tmp/template-workflows
 
       - name: Commit and Push Changes
