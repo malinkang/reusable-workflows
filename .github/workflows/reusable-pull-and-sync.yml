@@ -4,7 +4,7 @@ on:
   workflow_call:
     secrets:
         PAT:
-          required: true
+          required: false
 
 jobs:
   pull_and_sync:
@@ -13,7 +13,7 @@ jobs:
       - name: Checkout Target Repo
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.PAT || github.token }}
 
       - name: Checkout Source Repo
         uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
           repository: malinkang/template-workflows
           ref: main
           path: ./.tmp/template-workflows
-          token: ${{ secrets.PAT }}
+          token: ${{ secrets.PAT || github.token }}
 
 
       - name: Sync Files
